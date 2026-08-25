@@ -25,21 +25,30 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  const isLocal = !process.env.VERCEL;
-  
-  const browser = await playwright.launch({
-    args: isLocal ? [] : chromium.args,
-    executablePath: isLocal 
-      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
-      : await chromium.executablePath(),
-    headless: true,
-  });
+  let browser;
+
+  // --- PLAYWRIGHT + @sparticuz/chromium FIX ---
+  if (process.env.VERCEL) {
+    const executablePath = await chromium.executablePath();
+    console.log('🔍 Using Chromium at:', executablePath);
+    
+    browser = await playwright.launch({
+      args: chromium.args,
+      executablePath: executablePath,
+      headless: true,
+    });
+  } else {
+    browser = await playwright.launch({
+      args: [],
+      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      headless: true,
+    });
+  }
 
   const context = await browser.newContext();
   const page = await context.newPage();
 
   try {
-    // 1. LOGIN
     console.log('📱 Logging in as:', username);
     await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle' });
     await page.fill('#user', username);
@@ -52,13 +61,11 @@ async function fetchJutResults(username, password) {
     }
     console.log('✅ Login successful!');
 
-    // 2. GO TO THE JUT LIST PAGE
     await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
       waitUntil: 'networkidle',
     });
     console.log('📄 JUT list page loaded');
 
-    // 3. EXTRACT ALL JUT IDs
     const jutIds = await page.evaluate(() => {
       const ids = [];
       const links = document.querySelectorAll('a[href*="view_result?id="]');
@@ -81,7 +88,6 @@ async function fetchJutResults(username, password) {
       }
     }
 
-    // 4. FETCH EACH JUT
     const results = [];
     for (const id of jutIds) {
       try {
