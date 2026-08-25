@@ -474,4 +474,4 @@ function TrendIndicator({ subject, value, color }) {
       <p className={`text-${color} text-sm font-semibold mt-1`}>{value}</p>
     </div>
   );
-}
+} 

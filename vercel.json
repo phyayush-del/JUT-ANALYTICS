@@ -3,11 +3,12 @@
     "app/api/**/*.js": {
       "maxDuration": 60
     }
-  },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
+  }
+}
+{
+  "functions": {
+    "app/api/**/*.js": {
+      "maxDuration": 60
     }
-  ]
+  }
 }
