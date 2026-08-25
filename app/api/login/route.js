@@ -16,61 +16,11 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- RUNTIME CHROME DETECTION ---
-    let executablePath;
-    const fs = await import('fs');
+    // --- VERCEL ONLY CHROME DETECTION ---
+    // On Vercel, use the system Chrome path
+    const executablePath = '/usr/bin/chromium-browser';
+    console.log('🔍 Using Chrome at:', executablePath);
 
-    if (process.env.VERCEL) {
-      // On Vercel - check multiple system paths
-      const possiblePaths = [
-        '/usr/bin/chromium-browser',
-        '/usr/bin/chromium',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chrome',
-      ];
-      
-      let foundPath = null;
-      for (const path of possiblePaths) {
-        if (fs.existsSync(path)) {
-          foundPath = path;
-          break;
-        }
-      }
-      
-      if (foundPath) {
-        executablePath = foundPath;
-        console.log(`🔍 Using system Chrome at: ${executablePath}`);
-      } else {
-        // Fallback: try @sparticuz/chromium
-        try {
-          const chromium = await import('@sparticuz/chromium');
-          executablePath = await chromium.executablePath();
-          console.log(`🔍 Using @sparticuz/chromium at: ${executablePath}`);
-        } catch (error) {
-          console.log('⚠️ All Chrome detection methods failed');
-          throw new Error('Could not find Chrome on this system');
-        }
-      }
-    } else {
-      // Local development
-      const localPaths = [
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium-browser',
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      ];
-      
-      for (const path of localPaths) {
-        if (fs.existsSync(path)) {
-          executablePath = path;
-          break;
-        }
-      }
-      
-      executablePath = executablePath || '/usr/bin/chromium-browser';
-      console.log(`🔍 Running locally, using: ${executablePath}`);
-    }
-
-    // Launch browser
     browser = await puppeteer.launch({
       headless: true,
       args: [
