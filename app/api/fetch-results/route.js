@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import fs from 'fs';
+import chromium from '@sparticuz/chromium';
 
 export async function GET(request) {
   try {
@@ -25,33 +25,43 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- CHROME DETECTION ---
-  let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  // --- CHROME DETECTION FOR SERVERLESS ---
+  let executablePath;
 
-  if (!executablePath) {
+  if (process.env.VERCEL) {
+    // Running on Vercel - use serverless Chromium
+    executablePath = await chromium.executablePath();
+    console.log('🔍 Running on Vercel, using serverless Chromium');
+  } else {
+    // Local development - check common paths
+    const fs = await import('fs');
     const possiblePaths = [
       '/usr/bin/google-chrome',
       '/usr/bin/chromium-browser',
       '/usr/bin/chromium',
       '/usr/bin/chrome',
-      '/usr/bin/chromium-browser-stable',
-      '/usr/bin/google-chrome-stable',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // Mac
     ];
-
+    
     for (const path of possiblePaths) {
       if (fs.existsSync(path)) {
         executablePath = path;
         break;
       }
     }
-
+    
     executablePath = executablePath || '/usr/bin/chromium-browser';
-    console.log(`🔍 Using browser at: ${executablePath}`);
+    console.log(`🔍 Running locally, using browser at: ${executablePath}`);
   }
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
     executablePath: executablePath,
   });
 
