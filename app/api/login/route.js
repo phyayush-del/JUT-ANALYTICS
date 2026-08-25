@@ -14,7 +14,6 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- CREATE A SESSION ---
     const session = axios.create({
       withCredentials: true,
       headers: {
@@ -27,12 +26,8 @@ export async function POST(request) {
       },
     });
 
-    // 1. GET LOGIN PAGE (to get cookies)
-    console.log('📄 Getting login page...');
     await session.get('https://jnanasudha.com/quiz/login');
 
-    // 2. POST LOGIN
-    console.log('📤 Submitting login form...');
     const loginResponse = await session.post(
       'https://jnanasudha.com/quiz/login',
       new URLSearchParams({
@@ -43,13 +38,11 @@ export async function POST(request) {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        maxRedirects: 0, // Don't follow redirects
+        maxRedirects: 0,
         validateStatus: (status) => status < 400 || status === 302,
       }
     );
 
-    // 3. CHECK IF LOGIN SUCCEEDED
-    // Success = status 302 (redirect) OR the page doesn't contain "login"
     const isLoggedIn = loginResponse.status === 302 || 
                        !loginResponse.data.includes('login');
 
@@ -61,7 +54,6 @@ export async function POST(request) {
         user: username,
       });
     } else {
-      console.log('❌ Login failed for:', username);
       return NextResponse.json(
         { success: false, message: 'Invalid credentials' },
         { status: 401 }

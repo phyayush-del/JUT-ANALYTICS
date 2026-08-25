@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
+
+// --- USE require() FOR CHEERIO ---
+import { load } from 'cheerio';
+// OR use dynamic import:
+// const cheerio = await import('cheerio');
 
 export async function GET(request) {
   try {
@@ -25,7 +29,6 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🔍 Fetching JUT results for:', username);
 
-  // --- CREATE A SESSION ---
   const session = axios.create({
     withCredentials: true,
     headers: {
@@ -39,7 +42,6 @@ async function fetchJutResults(username, password) {
   });
 
   try {
-    // 1. LOGIN
     console.log('📱 Logging in...');
     await session.get('https://jnanasudha.com/quiz/login');
 
@@ -50,9 +52,7 @@ async function fetchJutResults(username, password) {
         pass: password,
       }),
       {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         maxRedirects: 0,
         validateStatus: (status) => status < 400 || status === 302,
       }
@@ -66,15 +66,14 @@ async function fetchJutResults(username, password) {
     }
     console.log('✅ Login successful!');
 
-    // 2. GET JUT LIST PAGE
     console.log('📄 Fetching JUT list...');
     const listResponse = await session.get(
       'https://jnanasudha.com/quiz/quiz_inform?package=357'
     );
 
-    const $ = cheerio.load(listResponse.data);
+    // --- USE CHEERIO WITH load() ---
+    const $ = load(listResponse.data);
 
-    // 3. EXTRACT JUT IDs
     const jutIds = [];
     $('a[href*="view_result?id="]').each((i, el) => {
       const href = $(el).attr('href');
@@ -93,7 +92,6 @@ async function fetchJutResults(username, password) {
       }
     }
 
-    // 4. FETCH EACH JUT
     const results = [];
     const idsToFetch = jutIds.slice(0, 20);
     console.log(`📊 Fetching ${idsToFetch.length} JUTs...`);
@@ -106,7 +104,8 @@ async function fetchJutResults(username, password) {
           { timeout: 10000 }
         );
 
-        const $$ = cheerio.load(resultResponse.data);
+        // --- USE CHEERIO WITH load() ---
+        const $$ = load(resultResponse.data);
         const pageText = $$('body').text();
 
         if (!pageText.includes('Total Score') && !pageText.includes('RANK')) {
