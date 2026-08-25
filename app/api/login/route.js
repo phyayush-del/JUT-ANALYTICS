@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+// Use puppeteer-core instead of puppeteer
+import puppeteer from 'puppeteer-core';
 
 export async function POST(request) {
   let browser = null;
-  
+
   try {
     const { username, password } = await request.json();
 
@@ -16,17 +17,20 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
+    // Launch with puppeteer-core and a specific executable path
     browser = await puppeteer.launch({
-      headless: false,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // Use environment variable for path, fallback to common Vercel path
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
     });
 
     const page = await browser.newPage();
 
     // Go to login page
-    await page.goto('https://jnanasudha.com/quiz/login', { 
+    await page.goto('https://jnanasudha.com/quiz/login', {
       waitUntil: 'networkidle2',
-      timeout: 30000 
+      timeout: 30000,
     });
 
     console.log('📄 Login page loaded');
@@ -35,14 +39,14 @@ export async function POST(request) {
     await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
     console.log('✅ Form found!');
 
-    // Use the exact IDs we found
+    // Type credentials
     await page.type('#user', username);
     console.log('📝 Username typed');
 
     await page.type('#pass', password);
     console.log('📝 Password typed');
 
-    // Click the login button using its exact ID
+    // Click login button
     await page.click('#btn-login');
     console.log('🖱️ Login button clicked');
 
@@ -60,7 +64,7 @@ export async function POST(request) {
         const errorElement = document.querySelector('.error, .alert, .message, [class*="error"]');
         return errorElement ? errorElement.innerText : 'Unknown error';
       });
-      
+
       await browser.close();
       return NextResponse.json(
         { success: false, message: `Login failed: ${errorText}` },
@@ -70,25 +74,24 @@ export async function POST(request) {
 
     console.log('✅ Login successful for:', username);
 
-    // Take a screenshot of the dashboard
-    await page.screenshot({ path: 'dashboard.png' });
-    console.log('📸 Dashboard screenshot saved as dashboard.png');
+    // Take a screenshot of the dashboard (optional, for debugging)
+    // await page.screenshot({ path: 'dashboard.png' });
+    // console.log('📸 Dashboard screenshot saved as dashboard.png');
 
     await browser.close();
 
     return NextResponse.json({
       success: true,
       message: 'Login successful',
-      user: username
+      user: username,
     });
-
   } catch (error) {
     console.error('❌ Login error:', error);
-    
+
     if (browser) {
       await browser.close();
     }
-    
+
     return NextResponse.json(
       { success: false, message: error.message || 'Login failed' },
       { status: 500 }
