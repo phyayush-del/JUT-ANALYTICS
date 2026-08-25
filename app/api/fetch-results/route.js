@@ -1,36 +1,6 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
-import fs from 'fs';
-import path from 'path';
-
-const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar';
-
-async function getChromiumPath() {
-  try {
-    const execPath = await chromium.executablePath(CHROMIUM_URL);
-    if (fs.existsSync(execPath)) {
-      return execPath;
-    }
-  } catch (e) {
-    console.log('⚠️ Download failed, checking cache...');
-  }
-
-  const cachedPaths = [
-    '/tmp/chromium',
-    '/tmp/chromium-pack/chromium',
-    path.join(process.cwd(), '.cache/chromium'),
-  ];
-
-  for (const p of cachedPaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Using cached Chromium at:', p);
-      return p;
-    }
-  }
-
-  throw new Error('❌ Could not find or download Chromium');
-}
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export async function GET(request) {
   try {
@@ -53,137 +23,140 @@ export async function GET(request) {
 }
 
 async function fetchJutResults(username, password) {
-  console.log('🚀 Launching browser for:', username);
+  console.log('🔍 Fetching JUT results for:', username);
 
-  const executablePath = await getChromiumPath();
-  console.log('🔍 Using Chromium at:', executablePath);
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: chromium.args,
-    executablePath: executablePath,
+  // --- CREATE A SESSION ---
+  const session = axios.create({
+    withCredentials: true,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+    },
   });
 
-  const page = await browser.newPage();
-
   try {
-    console.log('📱 Logging in as:', username);
-    await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
-    await page.type('#user', username);
-    await page.type('#pass', password);
-    await page.click('#btn-login');
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+    // 1. LOGIN
+    console.log('📱 Logging in...');
+    await session.get('https://jnanasudha.com/quiz/login');
 
-    if (page.url().includes('login')) {
+    const loginResponse = await session.post(
+      'https://jnanasudha.com/quiz/login',
+      new URLSearchParams({
+        user: username,
+        pass: password,
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        maxRedirects: 0,
+        validateStatus: (status) => status < 400 || status === 302,
+      }
+    );
+
+    const isLoggedIn = loginResponse.status === 302 || 
+                       !loginResponse.data.includes('login');
+
+    if (!isLoggedIn) {
       throw new Error('Login failed - incorrect credentials');
     }
     console.log('✅ Login successful!');
 
-    await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
-      waitUntil: 'networkidle2',
+    // 2. GET JUT LIST PAGE
+    console.log('📄 Fetching JUT list...');
+    const listResponse = await session.get(
+      'https://jnanasudha.com/quiz/quiz_inform?package=357'
+    );
+
+    const $ = cheerio.load(listResponse.data);
+
+    // 3. EXTRACT JUT IDs
+    const jutIds = [];
+    $('a[href*="view_result?id="]').each((i, el) => {
+      const href = $(el).attr('href');
+      const match = href.match(/id=(\d+)/);
+      if (match) {
+        jutIds.push(parseInt(match[1]));
+      }
     });
-    console.log('📄 JUT list page loaded');
 
-    const jutIds = await page.evaluate(() => {
-      const ids = [];
-      const links = document.querySelectorAll('a[href*="view_result?id="]');
-      links.forEach((link) => {
-        const href = link.getAttribute('href');
-        const match = href.match(/id=(\d+)/);
-        if (match) {
-          ids.push(parseInt(match[1]));
-        }
-      });
-      return ids;
-    });
+    console.log(`📊 Found ${jutIds.length} JUT IDs`);
 
-    console.log(`📊 Found ${jutIds.length} JUTs`);
+    if (jutIds.length === 0) {
+      console.log('⚠️ No IDs found. Using range method...');
+      for (let id = 10400; id <= 10500; id++) {
+        jutIds.push(id);
+      }
+    }
 
-    const idsToFetch = jutIds.slice(0, 10);
-    console.log(`📊 Fetching ${idsToFetch.length} most recent`);
-
+    // 4. FETCH EACH JUT
     const results = [];
+    const idsToFetch = jutIds.slice(0, 20);
+    console.log(`📊 Fetching ${idsToFetch.length} JUTs...`);
+
     for (const id of idsToFetch) {
       try {
         console.log(`📊 Fetching JUT ${id}...`);
+        const resultResponse = await session.get(
+          `https://jnanasudha.com/quiz/view_result?id=${id}`,
+          { timeout: 10000 }
+        );
 
-        await page.goto(`https://jnanasudha.com/quiz/view_result?id=${id}`, {
-          waitUntil: 'networkidle2',
-          timeout: 10000,
-        });
+        const $$ = cheerio.load(resultResponse.data);
+        const pageText = $$('body').text();
 
-        const isValid = await page.evaluate(() => {
-          const text = document.body.innerText;
-          return text.includes('Total Score') || text.includes('RANK');
-        });
-
-        if (!isValid) {
+        if (!pageText.includes('Total Score') && !pageText.includes('RANK')) {
           console.log(`⏭️ JUT ${id}: No data found, skipping`);
           continue;
         }
 
-        const data = await page.evaluate(() => {
-          const text = document.body.innerText;
+        const scoreMatch = pageText.match(/Total Score:\s*(\d+)/i);
+        const rankMatch = pageText.match(/RANK:\s*(\d+)/i);
 
-          const scoreMatch = text.match(/Total Score:\s*(\d+)/i);
-          const rankMatch = text.match(/RANK:\s*(\d+)/i);
-
-          const rows = document.querySelectorAll('table tr');
-          let physics = 0,
-            chemistry = 0,
-            biology = 0;
-
-          rows.forEach((row) => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 5) {
-              const subject = cells[0].innerText.trim().toUpperCase();
-              if (subject.includes('PHYSICS')) {
-                physics = parseFloat(cells[4]?.innerText) || 0;
-              } else if (subject.includes('CHEMISTRY')) {
-                chemistry = parseFloat(cells[4]?.innerText) || 0;
-              } else if (subject.includes('BIOLOGY')) {
-                biology = parseFloat(cells[4]?.innerText) || 0;
-              }
-            }
-          });
-
-          if (physics === 0 && chemistry === 0 && biology === 0) {
-            const marksMatch = text.match(/Marks\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
-            if (marksMatch) {
-              physics = parseFloat(marksMatch[1]) || 0;
-              chemistry = parseFloat(marksMatch[2]) || 0;
-              biology = parseFloat(marksMatch[3]) || 0;
-            }
+        let physics = 0, chemistry = 0, biology = 0;
+        $$('table tr').each((i, row) => {
+          const cells = $$(row).find('td');
+          if (cells.length >= 5) {
+            const subject = $$(cells[0]).text().trim().toUpperCase();
+            const marks = parseFloat($$(cells[4]).text()) || 0;
+            if (subject.includes('PHYSICS')) physics = marks;
+            else if (subject.includes('CHEMISTRY')) chemistry = marks;
+            else if (subject.includes('BIOLOGY')) biology = marks;
           }
-
-          return {
-            score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-            rank: rankMatch ? parseInt(rankMatch[1]) : 0,
-            physics,
-            chemistry,
-            biology,
-          };
         });
 
-        if (data.score > 0 || data.physics > 0 || data.chemistry > 0 || data.biology > 0) {
-          results.push({ id, ...data });
-          console.log(`✅ JUT ${id}: Score ${data.score}, Rank ${data.rank}`);
+        if (physics === 0 && chemistry === 0 && biology === 0) {
+          const marksMatch = pageText.match(/Marks\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
+          if (marksMatch) {
+            physics = parseFloat(marksMatch[1]) || 0;
+            chemistry = parseFloat(marksMatch[2]) || 0;
+            biology = parseFloat(marksMatch[3]) || 0;
+          }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
+        const rank = rankMatch ? parseInt(rankMatch[1]) : 0;
+
+        if (score > 0 || physics > 0 || chemistry > 0 || biology > 0) {
+          results.push({ id, score, rank, physics, chemistry, biology });
+          console.log(`✅ JUT ${id}: Score ${score}, Rank ${rank}`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
       } catch (error) {
         console.log(`❌ JUT ${id}: Error - ${error.message}`);
       }
     }
 
-    console.log(`✅ Scan complete! Found ${results.length} JUTs.`);
-    await browser.close();
-
+    console.log(`✅ Done! Found ${results.length} JUTs`);
     results.sort((a, b) => b.id - a.id);
     return results;
   } catch (error) {
     console.error('Error:', error);
-    await browser.close();
     throw error;
   }
 }

@@ -1,43 +1,7 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
-import fs from 'fs';
-import path from 'path';
-
-// --- CHROMIUM DOWNLOAD URL ---
-const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar';
-
-async function getChromiumPath() {
-  try {
-    // Let chromium-min handle the download
-    const execPath = await chromium.executablePath(CHROMIUM_URL);
-    if (fs.existsSync(execPath)) {
-      return execPath;
-    }
-  } catch (e) {
-    console.log('⚠️ Download failed, checking cache...');
-  }
-
-  // Check if already downloaded
-  const cachedPaths = [
-    '/tmp/chromium',
-    '/tmp/chromium-pack/chromium',
-    path.join(process.cwd(), '.cache/chromium'),
-  ];
-
-  for (const p of cachedPaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Using cached Chromium at:', p);
-      return p;
-    }
-  }
-
-  throw new Error('❌ Could not find or download Chromium');
-}
+import axios from 'axios';
 
 export async function POST(request) {
-  let browser = null;
-
   try {
     const { username, password } = await request.json();
 
@@ -50,73 +14,62 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- GET CHROMIUM ---
-    const executablePath = await getChromiumPath();
-    console.log('🔍 Using Chromium at:', executablePath);
-
-    // --- LAUNCH PUPPETEER ---
-    browser = await puppeteer.launch({
-      headless: true,
-      args: chromium.args, // Use chromium-min's default args
-      executablePath: executablePath,
+    // --- CREATE A SESSION ---
+    const session = axios.create({
+      withCredentials: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
     });
 
-    const page = await browser.newPage();
+    // 1. GET LOGIN PAGE (to get cookies)
+    console.log('📄 Getting login page...');
+    await session.get('https://jnanasudha.com/quiz/login');
 
-    await page.goto('https://jnanasudha.com/quiz/login', {
-      waitUntil: 'networkidle2',
-      timeout: 30000,
-    });
+    // 2. POST LOGIN
+    console.log('📤 Submitting login form...');
+    const loginResponse = await session.post(
+      'https://jnanasudha.com/quiz/login',
+      new URLSearchParams({
+        user: username,
+        pass: password,
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        maxRedirects: 0, // Don't follow redirects
+        validateStatus: (status) => status < 400 || status === 302,
+      }
+    );
 
-    console.log('📄 Login page loaded');
+    // 3. CHECK IF LOGIN SUCCEEDED
+    // Success = status 302 (redirect) OR the page doesn't contain "login"
+    const isLoggedIn = loginResponse.status === 302 || 
+                       !loginResponse.data.includes('login');
 
-    await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
-    console.log('✅ Form found!');
-
-    await page.type('#user', username);
-    console.log('📝 Username typed');
-
-    await page.type('#pass', password);
-    console.log('📝 Password typed');
-
-    await page.click('#btn-login');
-    console.log('🖱️ Login button clicked');
-
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-    console.log('📱 Navigation complete');
-
-    const currentUrl = page.url();
-    console.log('📍 Current URL:', currentUrl);
-
-    if (currentUrl.includes('login')) {
-      const errorText = await page.evaluate(() => {
-        const el = document.querySelector('.error, .alert, .message');
-        return el ? el.innerText : 'Unknown error';
+    if (isLoggedIn) {
+      console.log('✅ Login successful for:', username);
+      return NextResponse.json({
+        success: true,
+        message: 'Login successful',
+        user: username,
       });
-      
-      await browser.close();
+    } else {
+      console.log('❌ Login failed for:', username);
       return NextResponse.json(
-        { success: false, message: `Login failed: ${errorText}` },
+        { success: false, message: 'Invalid credentials' },
         { status: 401 }
       );
     }
 
-    console.log('✅ Login successful for:', username);
-    await browser.close();
-
-    return NextResponse.json({
-      success: true,
-      message: 'Login successful',
-      user: username,
-    });
-
   } catch (error) {
     console.error('❌ Login error:', error);
-
-    if (browser) {
-      await browser.close();
-    }
-
     return NextResponse.json(
       { success: false, message: error.message || 'Login failed' },
       { status: 500 }

@@ -30,7 +30,7 @@ export default function LoginPage() {
         sessionStorage.setItem('jnanasudha_password', password);
         router.push('/dashboard');
       } else {
-        setError(data.message || 'Invalid credentials. Please try again.');
+        setError(data.message || 'Invalid credentials.');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -41,35 +41,25 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] p-4">
-      
-      {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-br from-purple-900/10 via-transparent to-blue-900/10 animate-spin-slow" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl" />
       </div>
 
-      {/* Login Card - JUT HUB Style */}
       <div className="relative z-10 w-full max-w-sm">
         <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl shadow-purple-900/20">
-          
-          {/* Logo */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
               <span className="text-3xl">🎯</span>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wider">
-              JUT ANALYTICS
-            </h1>
+            <h1 className="text-2xl font-bold text-white tracking-wider">JUT ANALYTICS</h1>
             <p className="text-gray-500 text-xs mt-2 tracking-wider">AUTHENTICATION REQUIRED</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">
-                Jnanasudha Username
-              </label>
+              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">Jnanasudha Username</label>
               <input
                 type="text"
                 value={username}
@@ -79,11 +69,8 @@ export default function LoginPage() {
                 required
               />
             </div>
-
             <div>
-              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">
-                Password
-              </label>
+              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">Password</label>
               <input
                 type="password"
                 value={password}
@@ -114,11 +101,8 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
           <div className="mt-6 text-center">
-            <p className="text-gray-600 text-[10px] tracking-wider">
-              CONTACT ADMIN IF YOU DON'T HAVE ACCESS
-            </p>
+            <p className="text-gray-600 text-[10px] tracking-wider">CONTACT ADMIN IF YOU DON'T HAVE ACCESS</p>
           </div>
         </div>
       </div>
@@ -128,9 +112,7 @@ export default function LoginPage() {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .animate-spin-slow {
-          animation: spin-slow 20s linear infinite;
-        }
+        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
       `}</style>
     </div>
   );

@@ -1,4 +1,3 @@
-// 🚀 FORCE REDEPLOY - 2026-08-25
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,8 +13,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [showData, setShowData] = useState(false);
   const [user, setUser] = useState('');
-  const [targetScore, setTargetScore] = useState(680);
-  const [showTargetInput, setShowTargetInput] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -25,15 +22,6 @@ export default function Dashboard() {
       router.push('/');
     } else {
       setUser(username);
-      // Try to load cached results
-      const cached = localStorage.getItem('jutResults');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setResults(parsed);
-          setShowData(true);
-        } catch (e) {}
-      }
     }
   }, []);
 
@@ -65,8 +53,6 @@ export default function Dashboard() {
       
       setResults(data);
       setShowData(true);
-      // Cache results
-      localStorage.setItem('jutResults', JSON.stringify(data));
     } catch (error) {
       console.error('Fetch error:', error);
       setResults([]);
@@ -77,88 +63,9 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     sessionStorage.clear();
-    localStorage.removeItem('jutResults');
     router.push('/');
   };
 
-  const exportPDF = () => {
-    window.print();
-  };
-
-  // --- ANALYTICS FUNCTIONS ---
-  const getBestSubject = () => {
-    if (results.length === 0) return 'N/A';
-    const avgPhysics = results.reduce((a, b) => a + (b.physics || 0), 0) / results.length;
-    const avgChemistry = results.reduce((a, b) => a + (b.chemistry || 0), 0) / results.length;
-    const avgBiology = results.reduce((a, b) => a + (b.biology || 0), 0) / results.length;
-    
-    const max = Math.max(avgPhysics, avgChemistry, avgBiology);
-    if (max === avgPhysics) return 'Physics';
-    if (max === avgChemistry) return 'Chemistry';
-    return 'Biology';
-  };
-
-  const getImprovingSubject = () => {
-    if (results.length < 3) return 'Need more data';
-    const sorted = [...results].sort((a, b) => a.id - b.id);
-    const first = sorted.slice(0, 3);
-    const last = sorted.slice(-3);
-    
-    const firstAvg = {
-      physics: first.reduce((a, b) => a + (b.physics || 0), 0) / first.length,
-      chemistry: first.reduce((a, b) => a + (b.chemistry || 0), 0) / first.length,
-      biology: first.reduce((a, b) => a + (b.biology || 0), 0) / first.length,
-    };
-    const lastAvg = {
-      physics: last.reduce((a, b) => a + (b.physics || 0), 0) / last.length,
-      chemistry: last.reduce((a, b) => a + (b.chemistry || 0), 0) / last.length,
-      biology: last.reduce((a, b) => a + (b.biology || 0), 0) / last.length,
-    };
-    
-    const improvements = {
-      physics: lastAvg.physics - firstAvg.physics,
-      chemistry: lastAvg.chemistry - firstAvg.chemistry,
-      biology: lastAvg.biology - firstAvg.biology,
-    };
-    
-    const max = Math.max(improvements.physics, improvements.chemistry, improvements.biology);
-    if (max <= 0) return 'Stable';
-    if (max === improvements.physics) return 'Physics';
-    if (max === improvements.chemistry) return 'Chemistry';
-    return 'Biology';
-  };
-
-  const getConsistency = () => {
-    if (results.length < 2) return 100;
-    const scores = results.map(r => r.score);
-    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const variance = scores.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / scores.length;
-    const stdDev = Math.sqrt(variance);
-    const consistency = Math.max(0, 100 - (stdDev / avg) * 100);
-    return Math.round(consistency);
-  };
-
-  const getTargetProgress = () => {
-    if (results.length === 0 || targetScore === 0) return 0;
-    const currentAvg = results.reduce((a, b) => a + b.score, 0) / results.length;
-    const progress = Math.min(100, Math.round((currentAvg / targetScore) * 100));
-    return Math.min(100, progress);
-  };
-
-  const getTrend = (subject) => {
-    if (results.length < 3) return 'Need more data';
-    const sorted = [...results].sort((a, b) => a.id - b.id);
-    const first = sorted.slice(0, 2);
-    const last = sorted.slice(-2);
-    const firstAvg = first.reduce((a, b) => a + (b[subject] || 0), 0) / first.length;
-    const lastAvg = last.reduce((a, b) => a + (b[subject] || 0), 0) / last.length;
-    const diff = lastAvg - firstAvg;
-    if (diff > 10) return '📈 Improving';
-    if (diff < -10) return '📉 Declining';
-    return '📊 Stable';
-  };
-
-  // Chart Data
   const chartData = results.map(r => ({
     name: `JUT ${r.id}`,
     score: r.score,
@@ -176,13 +83,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] p-8">
-      
-      {/* Header */}
-      <header className="flex flex-wrap justify-between items-center gap-4 mb-8">
+      <header className="flex flex-wrap justify-between items-center gap-4 mb-12">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-wider">
-            JUT ANALYTICS
-          </h1>
+          <h1 className="text-3xl font-bold text-white tracking-wider">JUT ANALYTICS</h1>
           <p className="text-gray-500 text-xs mt-1 tracking-wider">
             NEET PERFORMANCE SYSTEM 
             <span className="text-purple-400 ml-2">👤 {user}</span>
@@ -197,12 +100,6 @@ export default function Dashboard() {
             {loading ? '⟳ SYNCING...' : '📥 SYNC RESULTS'}
           </button>
           <button
-            onClick={exportPDF}
-            className="px-6 py-2.5 bg-green-500/20 border border-green-500/30 rounded-xl hover:scale-105 transition text-green-400 text-xs font-semibold tracking-wider"
-          >
-            📄 EXPORT PDF
-          </button>
-          <button
             onClick={handleLogout}
             className="px-6 py-2.5 bg-red-500/10 border border-red-500/30 rounded-xl hover:scale-105 transition text-red-400 text-xs font-semibold tracking-wider"
           >
@@ -213,7 +110,6 @@ export default function Dashboard() {
 
       {showData && results.length > 0 && (
         <>
-          {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             <StatCard label="Current Score" value={results[results.length-1]?.score || 0} />
             <StatCard label="Best Score" value={Math.max(...results.map(r => r.score))} />
@@ -223,75 +119,6 @@ export default function Dashboard() {
             <StatCard label="Tests" value={results.length} />
           </div>
 
-          {/* Insights Section */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <InsightCard 
-              title="🏆 Best Subject" 
-              value={getBestSubject()} 
-              detail="Based on average marks"
-            />
-            <InsightCard 
-              title="📈 Improving Subject" 
-              value={getImprovingSubject()} 
-              detail="Most progress"
-            />
-            <InsightCard 
-              title="📊 Consistency" 
-              value={`${getConsistency()}%`} 
-              detail="Score stability"
-            />
-            <InsightCard 
-              title="🎯 Target Progress" 
-              value={`${getTargetProgress()}%`} 
-              detail={`Target: ${targetScore}`}
-            />
-          </div>
-
-          {/* Subject Trends */}
-          <div className="bg-white/5 rounded-2xl p-4 backdrop-blur-sm border border-white/10 mb-8">
-            <h3 className="text-sm font-semibold text-gray-400 mb-3 tracking-wider">📈 SUBJECT TRENDS</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <TrendIndicator 
-                subject="Physics" 
-                value={getTrend('physics')} 
-                color="cyan-400"
-              />
-              <TrendIndicator 
-                subject="Chemistry" 
-                value={getTrend('chemistry')} 
-                color="green-400"
-              />
-              <TrendIndicator 
-                subject="Biology" 
-                value={getTrend('biology')} 
-                color="pink-400"
-              />
-            </div>
-          </div>
-
-          {/* Target Setter */}
-          <div className="flex flex-wrap justify-center gap-4 mb-8">
-            <button
-              onClick={() => setShowTargetInput(!showTargetInput)}
-              className="px-4 py-2 bg-white/10 rounded-xl text-sm text-gray-300 hover:bg-white/20 transition"
-            >
-              {showTargetInput ? 'Hide Target' : '🎯 Set Target Score'}
-            </button>
-            {showTargetInput && (
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={targetScore}
-                  onChange={(e) => setTargetScore(parseInt(e.target.value) || 0)}
-                  className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white w-32 text-center"
-                  placeholder="680"
-                />
-                <span className="text-gray-400 text-sm">Target Score</span>
-              </div>
-            )}
-          </div>
-
-          {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <ChartCard title="SCORE PROGRESSION">
               <ResponsiveContainer width="100%" height={300}>
@@ -321,7 +148,6 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* Subject Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <ChartCard title="PHYSICS">
               <ResponsiveContainer width="100%" height={200}>
@@ -357,7 +183,6 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* Radar + Bar */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <ChartCard title="SUBJECT PERFORMANCE">
               <ResponsiveContainer width="100%" height={300}>
@@ -385,7 +210,6 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* Table */}
           <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
             <h2 className="text-lg font-semibold text-white mb-4 tracking-wider">📊 JUT HISTORY</h2>
             <div className="overflow-x-auto">
@@ -456,22 +280,3 @@ function ChartCard({ title, children }) {
     </div>
   );
 }
-
-function InsightCard({ title, value, detail }) {
-  return (
-    <div className="bg-white/5 rounded-2xl p-4 backdrop-blur-sm border border-white/10 hover:scale-105 transition">
-      <p className="text-gray-500 text-xs">{title}</p>
-      <p className="text-xl font-bold text-white mt-1">{value}</p>
-      <p className="text-gray-500 text-xs mt-1">{detail}</p>
-    </div>
-  );
-}
-
-function TrendIndicator({ subject, value, color }) {
-  return (
-    <div className="bg-white/5 rounded-xl p-3 text-center">
-      <p className="text-gray-500 text-xs">{subject}</p>
-      <p className={`text-${color} text-sm font-semibold mt-1`}>{value}</p>
-    </div>
-  );
-} 
