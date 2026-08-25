@@ -22,10 +22,17 @@ export async function POST(request) {
 
     if (process.env.VERCEL) {
       // Running on Vercel - use serverless Chromium-min
-      executablePath = await chromium.executablePath(
-        'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar'
-      );
-      console.log('🔍 Running on Vercel, using serverless Chromium-min');
+      try {
+        executablePath = await chromium.executablePath();
+        console.log('🔍 Running on Vercel, using serverless Chromium-min (default path)');
+      } catch (error) {
+        console.log('⚠️ Default path failed, trying fallback...');
+        // Fallback to a known working URL if needed
+        executablePath = await chromium.executablePath(
+          'https://github.com/Sparticuz/chromium/releases/download/v135.0.0/chromium-v135.0.0-pack.tar'
+        );
+        console.log('🔍 Using fallback Chromium download URL');
+      }
     } else {
       // Local development - check common paths
       const fs = await import('fs');
@@ -34,7 +41,7 @@ export async function POST(request) {
         '/usr/bin/chromium-browser',
         '/usr/bin/chromium',
         '/usr/bin/chrome',
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // Mac
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
       ];
       
       for (const path of possiblePaths) {
