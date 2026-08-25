@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import { findExecutablePath } from '@puppeteer/browsers';
 import fs from 'fs';
 
 export async function POST(request) {
@@ -18,22 +17,10 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- ROBUST CHROME DETECTION ---
+    // --- CHROME DETECTION ---
     let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
 
     if (!executablePath) {
-      // 1. Try to find Chrome/Chromium on the system
-      const chromeInfo = await findExecutablePath({
-        browser: 'chrome',
-        cacheDir: './.cache/puppeteer',
-      });
-
-      const chromiumInfo = await findExecutablePath({
-        browser: 'chromium',
-        cacheDir: './.cache/puppeteer',
-      });
-
-      // 2. If not found, check common Vercel paths
       const possiblePaths = [
         '/usr/bin/google-chrome',
         '/usr/bin/chromium-browser',
@@ -50,12 +37,11 @@ export async function POST(request) {
         }
       }
 
-      // 3. Use what we found, or fallback to a default
-      executablePath = chromeInfo || chromiumInfo || executablePath || '/usr/bin/chromium-browser';
+      executablePath = executablePath || '/usr/bin/chromium-browser';
       console.log(`🔍 Using browser at: ${executablePath}`);
     }
 
-    // Launch with the detected path
+    // Launch browser
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],

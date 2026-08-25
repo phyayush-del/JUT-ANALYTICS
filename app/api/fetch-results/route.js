@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import { findExecutablePath } from '@puppeteer/browsers';
 import fs from 'fs';
 
 export async function GET(request) {
@@ -26,22 +25,10 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- ROBUST CHROME DETECTION ---
+  // --- CHROME DETECTION ---
   let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
 
   if (!executablePath) {
-    // 1. Try to find Chrome/Chromium on the system
-    const chromeInfo = await findExecutablePath({
-      browser: 'chrome',
-      cacheDir: './.cache/puppeteer',
-    });
-
-    const chromiumInfo = await findExecutablePath({
-      browser: 'chromium',
-      cacheDir: './.cache/puppeteer',
-    });
-
-    // 2. If not found, check common Vercel paths
     const possiblePaths = [
       '/usr/bin/google-chrome',
       '/usr/bin/chromium-browser',
@@ -58,8 +45,7 @@ async function fetchJutResults(username, password) {
       }
     }
 
-    // 3. Use what we found, or fallback to a default
-    executablePath = chromeInfo || chromiumInfo || executablePath || '/usr/bin/chromium-browser';
+    executablePath = executablePath || '/usr/bin/chromium-browser';
     console.log(`🔍 Using browser at: ${executablePath}`);
   }
 
@@ -86,7 +72,6 @@ async function fetchJutResults(username, password) {
     console.log('✅ Login successful!');
 
     // 2. GO TO THE JUT LIST PAGE
-    // ⚠️ REPLACE THIS URL WITH YOUR ACTUAL JUT LIST PAGE
     await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
       waitUntil: 'networkidle2',
     });
