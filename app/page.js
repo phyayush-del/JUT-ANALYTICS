@@ -1,269 +1,137 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  Area
-} from 'recharts';
+import { useRouter } from 'next/navigation';
 
-export default function Home() {
-  const [results, setResults] = useState([]);
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showData, setShowData] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
-  const fetchResults = async () => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      const mockData = [
-        { id: 10411, score: 555, rank: 70, physics: 130, chemistry: 125, biology: 300 },
-        { id: 10422, score: 598, rank: 34, physics: 140, chemistry: 135, biology: 323 },
-        { id: 10439, score: 628, rank: 31, physics: 145, chemistry: 141, biology: 342 },
-      ];
-      setResults(mockData);
-      setShowData(true);
-      setLoading(false);
-    }, 2000);
+    setError('');
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        sessionStorage.setItem('isLoggedIn', 'true');
+        sessionStorage.setItem('jnanasudha_username', username);
+        sessionStorage.setItem('jnanasudha_password', password);
+        router.push('/dashboard');
+      } else {
+        setError(data.message || 'Invalid credentials. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    }
+
+    setLoading(false);
   };
 
-  // Prepare data for charts
-  const chartData = results.map(r => ({
-    name: `JUT ${r.id}`,
-    score: r.score,
-    rank: r.rank,
-    physics: r.physics,
-    chemistry: r.chemistry,
-    biology: r.biology,
-  }));
-
-  // Radar data
-  const radarData = [
-    { subject: 'Physics', value: Math.round(results.reduce((a, b) => a + b.physics, 0) / results.length) || 0 },
-    { subject: 'Chemistry', value: Math.round(results.reduce((a, b) => a + b.chemistry, 0) / results.length) || 0 },
-    { subject: 'Biology', value: Math.round(results.reduce((a, b) => a + b.biology, 0) / results.length) || 0 },
-  ];
-
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-br from-[#0a0a1a] via-[#0f0f2a] to-[#1a0a2e]">
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] p-4">
       
-      {/* Header */}
-      <header className="flex justify-between items-center mb-12">
-        <div>
-          <h1 className="text-4xl font-bold">
-            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              JUT Analytics
-            </span>
-          </h1>
-          <p className="text-gray-400 mt-2">NEET Performance System</p>
+      {/* Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-br from-purple-900/10 via-transparent to-blue-900/10 animate-spin-slow" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl" />
+      </div>
+
+      {/* Login Card - JUT HUB Style */}
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl shadow-purple-900/20">
+          
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+              <span className="text-3xl">🎯</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-wider">
+              JUT ANALYTICS
+            </h1>
+            <p className="text-gray-500 text-xs mt-2 tracking-wider">AUTHENTICATION REQUIRED</p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">
+                Jnanasudha Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition text-sm"
+                placeholder="Enter your mobile number"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-400 text-xs uppercase tracking-wider mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition text-sm"
+                placeholder="Enter your Jnanasudha password"
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-xs text-center">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl hover:scale-[1.02] transition-all duration-300 text-white font-semibold text-sm tracking-wider shadow-lg shadow-purple-500/30 disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin">⟳</span> AUTHENTICATING...
+                </span>
+              ) : (
+                'UNLOCK'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-gray-600 text-[10px] tracking-wider">
+              CONTACT ADMIN IF YOU DON'T HAVE ACCESS
+            </p>
+          </div>
         </div>
-        <button
-          onClick={fetchResults}
-          disabled={loading}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl hover:scale-105 transition text-white font-semibold disabled:opacity-50"
-        >
-          {loading ? '🔄 Syncing...' : '📥 Sync Results'}
-        </button>
-      </header>
+      </div>
 
-      {showData && results.length > 0 && (
-        <>
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-            <StatCard label="Current Score" value={results[results.length-1].score} />
-            <StatCard label="Best Score" value={Math.max(...results.map(r => r.score))} />
-            <StatCard label="Avg Score" value={Math.round(results.reduce((a,b) => a + b.score, 0) / results.length)} />
-            <StatCard label="Current Rank" value={`#${results[results.length-1].rank}`} />
-            <StatCard label="Best Rank" value={`#${Math.min(...results.map(r => r.rank))}`} />
-            <StatCard label="Tests" value={results.length} />
-          </div>
-
-          {/* GRAPHS ROW 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Score Chart */}
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">📈 Score Progression</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Legend />
-                  <Line type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={3} dot={{ fill: '#6366f1', r: 6 }} />
-                  <Area type="monotone" dataKey="score" fill="#6366f1" fillOpacity={0.1} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Rank Chart */}
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">📉 Rank Progression</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis reversed stroke="#888" />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Legend />
-                  <Line type="monotone" dataKey="rank" stroke="#a855f7" strokeWidth={3} dot={{ fill: '#a855f7', r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* GRAPHS ROW 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">🔬 Physics</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Line type="monotone" dataKey="physics" stroke="#06b6d4" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">🧪 Chemistry</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Line type="monotone" dataKey="chemistry" stroke="#22c55e" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">🧬 Biology</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Line type="monotone" dataKey="biology" stroke="#ec4899" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* GRAPHS ROW 3 - Radar + Bar */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">🎯 Subject Performance</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#333" />
-                  <PolarAngleAxis dataKey="subject" stroke="#888" />
-                  <PolarRadiusAxis stroke="#888" />
-                  <Radar name="Score" dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">📊 Subject Comparison</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333' }} />
-                  <Legend />
-                  <Bar dataKey="physics" fill="#06b6d4" />
-                  <Bar dataKey="chemistry" fill="#22c55e" />
-                  <Bar dataKey="biology" fill="#ec4899" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* JUT History Table */}
-          <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-            <h2 className="text-xl font-semibold text-white mb-4">📊 JUT History</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left p-3 text-gray-400">JUT</th>
-                    <th className="text-left p-3 text-gray-400">Score</th>
-                    <th className="text-left p-3 text-gray-400">Rank</th>
-                    <th className="text-left p-3 text-gray-400">Physics</th>
-                    <th className="text-left p-3 text-gray-400">Chemistry</th>
-                    <th className="text-left p-3 text-gray-400">Biology</th>
-                    <th className="text-left p-3 text-gray-400">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((result) => (
-                    <tr key={result.id} className="border-b border-gray-800 hover:bg-white/5">
-                      <td className="p-3 text-white">JUT {result.id}</td>
-                      <td className="p-3 text-blue-400 font-bold">{result.score}</td>
-                      <td className="p-3 text-purple-400">#{result.rank}</td>
-                      <td className="p-3 text-cyan-400">{result.physics}</td>
-                      <td className="p-3 text-green-400">{result.chemistry}</td>
-                      <td className="p-3 text-pink-400">{result.biology}</td>
-                      <td className="p-3 text-white font-semibold">{result.physics + result.chemistry + result.biology}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <p className="text-gray-400 text-sm">📈 Best Subject</p>
-              <p className="text-2xl font-bold text-white mt-1">Biology</p>
-              <p className="text-gray-500 text-sm mt-2">{Math.round(results.reduce((a,b) => a + b.biology, 0) / results.length)}/360 avg</p>
-            </div>
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <p className="text-gray-400 text-sm">🎯 Avg Score</p>
-              <p className="text-2xl font-bold text-white mt-1">{Math.round(results.reduce((a,b) => a + b.score, 0) / results.length)}</p>
-              <p className="text-gray-500 text-sm mt-2">Across all tests</p>
-            </div>
-            <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
-              <p className="text-gray-400 text-sm">⚡ Improvement</p>
-              <p className="text-2xl font-bold text-white mt-1">+{results[results.length-1].score - results[0].score}</p>
-              <p className="text-gray-500 text-sm mt-2">JUT {results[0].id} → JUT {results[results.length-1].id}</p>
-            </div>
-          </div>
-        </>
-      )}
-
-      {!showData && (
-        <div className="bg-white/5 rounded-2xl p-16 text-center backdrop-blur-sm border border-white/10">
-          <div className="text-6xl mb-6">🎯</div>
-          <h2 className="text-2xl font-bold text-white mb-4">Welcome to JUT Analytics!</h2>
-          <p className="text-gray-300">Click <span className="text-purple-400 font-semibold">"Sync Results"</span> to fetch your JUT data.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Stat Card
-function StatCard({ label, value }) {
-  return (
-    <div className="bg-white/5 rounded-2xl p-4 text-center backdrop-blur-sm border border-white/10 hover:scale-105 transition">
-      <p className="text-gray-400 text-sm uppercase">{label}</p>
-      <p className="text-2xl font-bold text-white mt-2">{value}</p>
+      <style jsx>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 20s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }
