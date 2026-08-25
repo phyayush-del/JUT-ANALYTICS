@@ -29,6 +29,7 @@ export default function LoginPage() {
         sessionStorage.setItem('jnanasudha_username', username);
         sessionStorage.setItem('jnanasudha_password', password);
         sessionStorage.setItem('jnanasudha_cookies', data.cookies || '');
+        console.log('🍪 Cookies stored:', data.cookies);
         router.push('/dashboard');
       } else {
         setError(data.message || 'Invalid credentials.');

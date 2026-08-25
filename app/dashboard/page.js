@@ -31,6 +31,8 @@ export default function Dashboard() {
       const username = sessionStorage.getItem('jnanasudha_username');
       const password = sessionStorage.getItem('jnanasudha_password');
       const cookies = sessionStorage.getItem('jnanasudha_cookies') || '';
+      
+      console.log('🍪 Sending cookies:', cookies);
 
       if (!username || !password) {
         throw new Error('Credentials not found');
@@ -43,16 +45,16 @@ export default function Dashboard() {
           'x-cookies': cookies,
         }
       });
-
+      
       const data = await response.json();
-
+      
       if (data.error) {
         console.error('Error:', data.error);
         setShowData(false);
         setResults([]);
         return;
       }
-
+      
       setResults(data);
       setShowData(true);
     } catch (error) {
@@ -85,6 +87,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] p-8">
+      {/* Header */}
       <header className="flex flex-wrap justify-between items-center gap-4 mb-12">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-wider">JUT ANALYTICS</h1>
@@ -112,6 +115,7 @@ export default function Dashboard() {
 
       {showData && results.length > 0 && (
         <>
+          {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             <StatCard label="Current Score" value={results[results.length-1]?.score || 0} />
             <StatCard label="Best Score" value={Math.max(...results.map(r => r.score))} />
@@ -187,6 +191,7 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
+          {/* Radar + Bar */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <ChartCard title="SUBJECT PERFORMANCE">
               <ResponsiveContainer width="100%" height={300}>
@@ -214,6 +219,7 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
+          {/* JUT History Table */}
           <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10">
             <h2 className="text-lg font-semibold text-white mb-4 tracking-wider">📊 JUT HISTORY</h2>
             <div className="overflow-x-auto">
@@ -267,6 +273,7 @@ export default function Dashboard() {
   );
 }
 
+// Helper Components
 function StatCard({ label, value }) {
   return (
     <div className="bg-white/5 rounded-2xl p-4 text-center backdrop-blur-sm border border-white/10 hover:scale-105 transition">

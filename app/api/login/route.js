@@ -14,6 +14,7 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
+    // Create a session with cookie jar
     const session = axios.create({
       withCredentials: true,
       headers: {
@@ -26,35 +27,59 @@ export async function POST(request) {
       },
     });
 
-    await session.get('https://jnanasudha.com/quiz/login');
+    // 1. Get login page to capture cookies
+    const loginPageResponse = await session.get('https://jnanasudha.com/quiz/login');
+    
+    // 2. Extract CSRF token if present
+    const html = loginPageResponse.data;
+    const csrfMatch = html.match(/name="_token" value="([^"]+)"/i);
+    const csrfToken = csrfMatch ? csrfMatch[1] : null;
 
+    // 3. Prepare login data
+    const formData = new URLSearchParams();
+    formData.append('user', username);
+    formData.append('pass', password);
+    if (csrfToken) {
+      formData.append('_token', csrfToken);
+    }
+
+    // 4. Submit login
     const loginResponse = await session.post(
       'https://jnanasudha.com/quiz/login',
-      new URLSearchParams({
-        user: username,
-        pass: password,
-      }),
+      formData,
       {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
         maxRedirects: 5,
         validateStatus: (status) => status < 500,
       }
     );
 
+    // 5. Check if login succeeded
     const isLoggedIn = loginResponse.status === 302 || 
                        loginResponse.data.includes('dashboard') ||
                        loginResponse.data.includes('quiz_inform');
 
     if (isLoggedIn) {
-      // Get cookies from the session
+      // Extract all cookies from the session
       const cookies = session.defaults.headers.common['Cookie'] || '';
-      
       console.log('✅ Login successful for:', username);
+      console.log('🍪 Cookies:', cookies);
+      
+      // Also try to get cookies from the response
+      const setCookieHeaders = loginResponse.headers['set-cookie'];
+      let allCookies = cookies;
+      if (setCookieHeaders) {
+        const responseCookies = setCookieHeaders.map(c => c.split(';')[0]).join('; ');
+        allCookies = allCookies ? allCookies + '; ' + responseCookies : responseCookies;
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Login successful',
         user: username,
-        cookies: cookies, // Pass cookies back to the frontend
+        cookies: allCookies,
       });
     } else {
       console.log('❌ Login failed for:', username);
