@@ -26,25 +26,44 @@ export async function POST(request) {
       },
     });
 
-    await session.get('https://jnanasudha.com/quiz/login');
+    // 1. Get login page
+    console.log('📄 Getting login page...');
+    const loginPageResponse = await session.get('https://jnanasudha.com/quiz/login');
+    
+    // Check if there's a CSRF token
+    const html = loginPageResponse.data;
+    const csrfMatch = html.match(/name="_token" value="([^"]+)"/i);
+    const csrfToken = csrfMatch ? csrfMatch[1] : null;
+    console.log('🔑 CSRF Token:', csrfToken || 'None found');
 
+    // 2. Prepare login data
+    const formData = new URLSearchParams();
+    formData.append('user', username);
+    formData.append('pass', password);
+    if (csrfToken) {
+      formData.append('_token', csrfToken);
+    }
+
+    console.log('📤 Submitting login form...');
     const loginResponse = await session.post(
       'https://jnanasudha.com/quiz/login',
-      new URLSearchParams({
-        user: username,
-        pass: password,
-      }),
+      formData,
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        maxRedirects: 0,
-        validateStatus: (status) => status < 400 || status === 302,
+        maxRedirects: 5, // Allow redirects
+        validateStatus: (status) => status < 500,
       }
     );
 
+    console.log('📊 Login response status:', loginResponse.status);
+    console.log('📊 Login response URL:', loginResponse.request?.res?.responseUrl || 'N/A');
+
+    // Check if login succeeded
     const isLoggedIn = loginResponse.status === 302 || 
-                       !loginResponse.data.includes('login');
+                       loginResponse.data.includes('dashboard') ||
+                       loginResponse.data.includes('quiz_inform');
 
     if (isLoggedIn) {
       console.log('✅ Login successful for:', username);
@@ -54,6 +73,8 @@ export async function POST(request) {
         user: username,
       });
     } else {
+      console.log('❌ Login failed for:', username);
+      console.log('📊 Response preview:', loginResponse.data.substring(0, 500));
       return NextResponse.json(
         { success: false, message: 'Invalid credentials' },
         { status: 401 }
