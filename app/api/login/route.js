@@ -14,12 +14,11 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- USE BROWSERLESS TO VERIFY LOGIN ---
     const response = await axios.post(
-      `https://chrome.browserless.io/function?token=${process.env.BROWSERLESS_API_KEY}`,
+      `https://chrome.browserless.io/function?apiKey=${process.env.BROWSERLESS_API_KEY}`,
       {
         code: `
-          async function main() {
+          (async () => {
             const browser = await puppeteer.launch({
               headless: true,
               args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -38,7 +37,7 @@ export async function POST(request) {
             await browser.close();
             
             return { success };
-          }
+          })()
         `
       },
       {

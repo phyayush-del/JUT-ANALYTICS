@@ -13,12 +13,11 @@ export async function GET(request) {
       );
     }
 
-    // --- CALL BROWSERLESS API ---
     const response = await axios.post(
-      `https://chrome.browserless.io/function?token=${process.env.BROWSERLESS_API_KEY}`,
+      `https://chrome.browserless.io/function?apiKey=${process.env.BROWSERLESS_API_KEY}`,
       {
         code: `
-          async function main() {
+          (async () => {
             const browser = await puppeteer.launch({
               headless: true,
               args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -112,7 +111,7 @@ export async function GET(request) {
             await browser.close();
             console.log('✅ Done! Found ' + results.length + ' JUTs');
             return results;
-          }
+          })()
         `
       },
       {
