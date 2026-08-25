@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-// Use puppeteer-core instead of puppeteer
 import puppeteer from 'puppeteer-core';
+import { findExecutablePath } from '@puppeteer/browsers';
+import fs from 'fs';
 
 export async function GET(request) {
   try {
@@ -24,11 +25,48 @@ export async function GET(request) {
 
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
+
+  // --- ROBUST CHROME DETECTION ---
+  let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  if (!executablePath) {
+    // 1. Try to find Chrome/Chromium on the system
+    const chromeInfo = await findExecutablePath({
+      browser: 'chrome',
+      cacheDir: './.cache/puppeteer',
+    });
+
+    const chromiumInfo = await findExecutablePath({
+      browser: 'chromium',
+      cacheDir: './.cache/puppeteer',
+    });
+
+    // 2. If not found, check common Vercel paths
+    const possiblePaths = [
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/chrome',
+      '/usr/bin/chromium-browser-stable',
+      '/usr/bin/google-chrome-stable',
+    ];
+
+    for (const path of possiblePaths) {
+      if (fs.existsSync(path)) {
+        executablePath = path;
+        break;
+      }
+    }
+
+    // 3. Use what we found, or fallback to a default
+    executablePath = chromeInfo || chromiumInfo || executablePath || '/usr/bin/chromium-browser';
+    console.log(`🔍 Using browser at: ${executablePath}`);
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    // Use environment variable for path, fallback to common Vercel path
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+    executablePath: executablePath,
   });
 
   const page = await browser.newPage();
@@ -42,7 +80,6 @@ async function fetchJutResults(username, password) {
     await page.click('#btn-login');
     await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
 
-    // Check if login worked
     if (page.url().includes('login')) {
       throw new Error('Login failed - incorrect credentials');
     }
@@ -55,10 +92,9 @@ async function fetchJutResults(username, password) {
     });
     console.log('📄 JUT list page loaded');
 
-    // 3. EXTRACT ALL JUT IDs FROM THE PAGE
+    // 3. EXTRACT ALL JUT IDs
     const jutIds = await page.evaluate(() => {
       const ids = [];
-      // Look for links that contain "view_result?id="
       const links = document.querySelectorAll('a[href*="view_result?id="]');
       links.forEach((link) => {
         const href = link.getAttribute('href');
@@ -72,7 +108,6 @@ async function fetchJutResults(username, password) {
 
     console.log(`📊 Found ${jutIds.length} JUTs on the list page`);
 
-    // If no IDs found, use the range method as fallback
     if (jutIds.length === 0) {
       console.log('⚠️ No IDs found on list page. Using range method...');
       for (let id = 10400; id <= 10500; id++) {
@@ -91,7 +126,6 @@ async function fetchJutResults(username, password) {
           timeout: 10000,
         });
 
-        // Check if page has data
         const isValid = await page.evaluate(() => {
           const text = document.body.innerText;
           return text.includes('Total Score') || text.includes('RANK');
@@ -102,14 +136,12 @@ async function fetchJutResults(username, password) {
           continue;
         }
 
-        // ✅ EXTRACT DATA
         const data = await page.evaluate(() => {
           const text = document.body.innerText;
 
           const scoreMatch = text.match(/Total Score:\s*(\d+)/i);
           const rankMatch = text.match(/RANK:\s*(\d+)/i);
 
-          // Extract subject data from table
           const rows = document.querySelectorAll('table tr');
           let physics = 0,
             chemistry = 0,
@@ -129,7 +161,6 @@ async function fetchJutResults(username, password) {
             }
           });
 
-          // Fallback: try regex for marks
           if (physics === 0 && chemistry === 0 && biology === 0) {
             const marksMatch = text.match(/Marks\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
             if (marksMatch) {
@@ -148,13 +179,11 @@ async function fetchJutResults(username, password) {
           };
         });
 
-        // Only save if it has valid data
         if (data.score > 0 || data.physics > 0 || data.chemistry > 0 || data.biology > 0) {
           results.push({ id, ...data });
           console.log(`✅ JUT ${id}: Score ${data.score}, Rank ${data.rank}`);
         }
 
-        // Small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         console.log(`❌ JUT ${id}: Error - ${error.message}`);
@@ -164,7 +193,6 @@ async function fetchJutResults(username, password) {
     console.log(`✅ Scan complete! Found ${results.length} JUTs.`);
     await browser.close();
 
-    // Sort by ID (newest first)
     results.sort((a, b) => b.id - a.id);
     return results;
   } catch (error) {
