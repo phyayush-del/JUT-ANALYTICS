@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-
-// --- USE require() FOR CHEERIO ---
-import { load } from 'cheerio';
-// OR use dynamic import:
-// const cheerio = await import('cheerio');
+import cheerio from 'cheerio';
 
 export async function GET(request) {
   try {
@@ -71,8 +67,7 @@ async function fetchJutResults(username, password) {
       'https://jnanasudha.com/quiz/quiz_inform?package=357'
     );
 
-    // --- USE CHEERIO WITH load() ---
-    const $ = load(listResponse.data);
+    const $ = cheerio.load(listResponse.data);
 
     const jutIds = [];
     $('a[href*="view_result?id="]').each((i, el) => {
@@ -104,8 +99,7 @@ async function fetchJutResults(username, password) {
           { timeout: 10000 }
         );
 
-        // --- USE CHEERIO WITH load() ---
-        const $$ = load(resultResponse.data);
+        const $$ = cheerio.load(resultResponse.data);
         const pageText = $$('body').text();
 
         if (!pageText.includes('Total Score') && !pageText.includes('RANK')) {
