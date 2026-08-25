@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 
 export async function GET(request) {
   try {
@@ -25,39 +25,32 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- CHROME DETECTION FOR SERVERLESS ---
+  // --- CHROME DETECTION ---
   let executablePath;
 
   if (process.env.VERCEL) {
-    // Running on Vercel - use serverless Chromium-min
     try {
       executablePath = await chromium.executablePath();
-      console.log('🔍 Running on Vercel, using serverless Chromium-min (default path)');
+      console.log('🔍 Running on Vercel, using @sparticuz/chromium');
     } catch (error) {
-      console.log('⚠️ Default path failed, trying fallback...');
-      executablePath = await chromium.executablePath(
-        'https://github.com/Sparticuz/chromium/releases/download/v135.0.0/chromium-v135.0.0-pack.tar'
-      );
-      console.log('🔍 Using fallback Chromium download URL');
+      console.log('⚠️ @sparticuz/chromium failed, using fallback path.');
+      executablePath = '/usr/bin/chromium-browser';
     }
   } else {
-    // Local development - check common paths
     const fs = await import('fs');
     const possiblePaths = [
       '/usr/bin/google-chrome',
       '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/usr/bin/chrome',
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     ];
-    
+
     for (const path of possiblePaths) {
       if (fs.existsSync(path)) {
         executablePath = path;
         break;
       }
     }
-    
+
     executablePath = executablePath || '/usr/bin/chromium-browser';
     console.log(`🔍 Running locally, using browser at: ${executablePath}`);
   }

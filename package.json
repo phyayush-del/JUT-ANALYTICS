@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": "24.x"
+    "node": "20.x"
   },
   "scripts": {
     "dev": "next dev",
@@ -11,13 +11,12 @@
     "start": "next start"
   },
   "dependencies": {
-    "@puppeteer/browsers": "^1.0.0",
-    "@sparticuz/chromium-min": "^149.0.0",
     "next": "14.0.4",
-    "puppeteer-core": "^21.0.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "recharts": "2.8.0"
+    "recharts": "2.8.0",
+    "puppeteer-core": "^21.0.0",
+    "@sparticuz/chromium": "^149.0.0"
   },
   "devDependencies": {
     "autoprefixer": "10.4.16",
