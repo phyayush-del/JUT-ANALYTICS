@@ -1,3 +1,4 @@
+// 🚀 FORCE REDEPLOY - 2026-08-25
 'use client';
 
 import { useState, useEffect } from 'react';
