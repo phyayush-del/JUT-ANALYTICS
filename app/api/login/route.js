@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-core';
+import { chromium as playwright } from 'playwright-core';
+import chromium from '@sparticuz/chromium';
 
 export async function POST(request) {
   let browser = null;
@@ -16,57 +17,55 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- DIRECT VERCEL CHROME PATH ---
-    const executablePath = '/usr/bin/chromium-browser';
-    console.log('🔍 Using Chrome at:', executablePath);
-
-    browser = await puppeteer.launch({
+    // --- PLAYWRIGHT + @sparticuz/chromium ---
+    const isLocal = !process.env.VERCEL;
+    
+    const browser = await playwright.launch({
+      args: isLocal ? [] : chromium.args,
+      executablePath: isLocal 
+        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
+        : await chromium.executablePath(),
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-      executablePath: executablePath,
     });
 
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
+    // Go to login page
     await page.goto('https://jnanasudha.com/quiz/login', {
-      waitUntil: 'networkidle2',
+      waitUntil: 'networkidle',
       timeout: 30000,
     });
 
     console.log('📄 Login page loaded');
 
+    // Wait for the form fields
     await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
     console.log('✅ Form found!');
 
-    await page.type('#user', username);
+    // Type credentials
+    await page.fill('#user', username);
     console.log('📝 Username typed');
 
-    await page.type('#pass', password);
+    await page.fill('#pass', password);
     console.log('📝 Password typed');
 
+    // Click login
     await page.click('#btn-login');
     console.log('🖱️ Login button clicked');
 
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+    // Wait for navigation
+    await page.waitForURL('**/quiz/**', { timeout: 30000 });
     console.log('📱 Navigation complete');
 
     const currentUrl = page.url();
     console.log('📍 Current URL:', currentUrl);
 
     if (currentUrl.includes('login')) {
-      const errorText = await page.evaluate(() => {
-        const errorElement = document.querySelector('.error, .alert, .message, [class*="error"]');
-        return errorElement ? errorElement.innerText : 'Unknown error';
-      });
-
+      const errorText = await page.textContent('.error, .alert, .message, [class*="error"]');
       await browser.close();
       return NextResponse.json(
-        { success: false, message: `Login failed: ${errorText}` },
+        { success: false, message: `Login failed: ${errorText || 'Unknown error'}` },
         { status: 401 }
       );
     }

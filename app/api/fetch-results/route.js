@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-core';
+import { chromium as playwright } from 'playwright-core';
+import chromium from '@sparticuz/chromium';
 
 export async function GET(request) {
   try {
@@ -24,31 +25,27 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- VERCEL ONLY CHROME DETECTION ---
-  const executablePath = '/usr/bin/chromium-browser';
-  console.log('🔍 Using Chrome at:', executablePath);
-
-  const browser = await puppeteer.launch({
+  const isLocal = !process.env.VERCEL;
+  
+  const browser = await playwright.launch({
+    args: isLocal ? [] : chromium.args,
+    executablePath: isLocal 
+      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' 
+      : await chromium.executablePath(),
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-    ],
-    executablePath: executablePath,
   });
 
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   try {
     // 1. LOGIN
     console.log('📱 Logging in as:', username);
-    await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
-    await page.type('#user', username);
-    await page.type('#pass', password);
+    await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle' });
+    await page.fill('#user', username);
+    await page.fill('#pass', password);
     await page.click('#btn-login');
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+    await page.waitForURL('**/quiz/**', { timeout: 30000 });
 
     if (page.url().includes('login')) {
       throw new Error('Login failed - incorrect credentials');
@@ -57,7 +54,7 @@ async function fetchJutResults(username, password) {
 
     // 2. GO TO THE JUT LIST PAGE
     await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
-      waitUntil: 'networkidle2',
+      waitUntil: 'networkidle',
     });
     console.log('📄 JUT list page loaded');
 
@@ -91,7 +88,7 @@ async function fetchJutResults(username, password) {
         console.log(`📊 Fetching JUT ${id}...`);
 
         await page.goto(`https://jnanasudha.com/quiz/view_result?id=${id}`, {
-          waitUntil: 'networkidle2',
+          waitUntil: 'networkidle',
           timeout: 10000,
         });
 

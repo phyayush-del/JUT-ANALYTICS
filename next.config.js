@@ -1,4 +1,12 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  serverExternalPackages: ['playwright-core', '@sparticuz/chromium'],
+  outputFileTracingIncludes: {
+    '/api/**/*': [
+      'node_modules/@sparticuz/chromium/bin/**/*',
+      'node_modules/playwright-core/**/*',
+    ],
+  },
+};
 
 module.exports = nextConfig;
