@@ -16,8 +16,7 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- VERCEL ONLY CHROME DETECTION ---
-    // On Vercel, use the system Chrome path
+    // --- DIRECT VERCEL CHROME PATH ---
     const executablePath = '/usr/bin/chromium-browser';
     console.log('🔍 Using Chrome at:', executablePath);
 
@@ -34,7 +33,6 @@ export async function POST(request) {
 
     const page = await browser.newPage();
 
-    // Go to login page
     await page.goto('https://jnanasudha.com/quiz/login', {
       waitUntil: 'networkidle2',
       timeout: 30000,
@@ -42,22 +40,18 @@ export async function POST(request) {
 
     console.log('📄 Login page loaded');
 
-    // Wait for the form fields
     await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
     console.log('✅ Form found!');
 
-    // Type credentials
     await page.type('#user', username);
     console.log('📝 Username typed');
 
     await page.type('#pass', password);
     console.log('📝 Password typed');
 
-    // Click login
     await page.click('#btn-login');
     console.log('🖱️ Login button clicked');
 
-    // Wait for navigation
     await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
     console.log('📱 Navigation complete');
 
