@@ -57,42 +57,56 @@ async function fetchJutResults(username, password, cookies) {
       console.log('✅ Login successful!');
     }
 
-    // --- 2. QUICK SCAN: ONLY CHECK FOR "Total Score" ---
-    console.log('📊 Scanning 9000-12000 for valid JUTs (quick check)...');
+    // --- 2. SCAN 9000-12000 ---
+    console.log('📊 Scanning 9000-12000 for valid JUTs...');
     const results = [];
-    const totalIds = 3001;
     let foundCount = 0;
     let checkedCount = 0;
 
     for (let id = 9000; id <= 12000; id++) {
       checkedCount++;
       
-      // Progress update every 500 IDs
       if (checkedCount % 500 === 0) {
-        console.log(`⏳ Scanned ${checkedCount}/${totalIds} IDs, found ${foundCount} valid JUTs`);
+        console.log(`⏳ Scanned ${checkedCount}/3001 IDs, found ${foundCount} valid JUTs`);
       }
 
       try {
-        // --- FAST CHECK: Only get the page and check for "Total Score" ---
         const response = await session.get(
           `https://jnanasudha.com/quiz/view_result?id=${id}`,
-          { timeout: 5000 } // 5 second timeout
+          { timeout: 5000 }
         );
 
-        // QUICK CHECK: Does this page have "Total Score"?
-        if (!response.data.includes('Total Score') && !response.data.includes('RANK')) {
-          continue; // Skip this ID immediately
-        }
-
-        // If we get here, it's a valid JUT!
-        console.log(`✅ Found valid JUT ${id}`);
         const $$ = cheerio.load(response.data);
         const pageText = $$('body').text();
 
-        // Extract data
+        // --- CHECK IF THIS IS A VALID JUT ---
+        // 1. Must have "Total Score"
         const scoreMatch = pageText.match(/Total Score:\s*(\d+)/i);
-        const rankMatch = pageText.match(/RANK:\s*(\d+)/i);
+        if (!scoreMatch) continue;
+        
+        const score = parseInt(scoreMatch[1]);
+        
+        // 2. Score must be > 0 (skip empty placeholder pages)
+        if (score === 0) {
+          console.log(`⏭️ JUT ${id}: Score 0 (empty/placeholder), skipping`);
+          continue;
+        }
 
+        // 3. Must have "RANK"
+        const rankMatch = pageText.match(/RANK:\s*(\d+)/i);
+        if (!rankMatch) continue;
+        
+        const rank = parseInt(rankMatch[1]);
+        if (rank === 0 || rank === 1) {
+          // Rank 0 or 1 could be placeholder, check if there's any correct answer
+          const hasCorrect = pageText.includes('Correct Answer');
+          if (!hasCorrect) {
+            console.log(`⏭️ JUT ${id}: Rank ${rank} but no correct answers, skipping`);
+            continue;
+          }
+        }
+
+        // --- EXTRACT SUBJECT DATA ---
         let physics = 0, chemistry = 0, biology = 0;
         $$('table tr').each((i, row) => {
           const cells = $$(row).find('td');
@@ -105,6 +119,7 @@ async function fetchJutResults(username, password, cookies) {
           }
         });
 
+        // Fallback: try regex for marks
         if (physics === 0 && chemistry === 0 && biology === 0) {
           const marksMatch = pageText.match(/Marks\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
           if (marksMatch) {
@@ -114,15 +129,15 @@ async function fetchJutResults(username, password, cookies) {
           }
         }
 
-        const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
-        const rank = rankMatch ? parseInt(rankMatch[1]) : 0;
-
-        results.push({ id, score, rank, physics, chemistry, biology });
-        foundCount++;
-        console.log(`✅ JUT ${id}: Score ${score}, Rank ${rank}`);
+        // Only save if we have at least one subject mark
+        if (physics > 0 || chemistry > 0 || biology > 0 || score > 0) {
+          results.push({ id, score, rank, physics, chemistry, biology });
+          foundCount++;
+          console.log(`✅ JUT ${id}: Score ${score}, Rank ${rank}, P:${physics} C:${chemistry} B:${biology}`);
+        }
 
       } catch (error) {
-        // Silent skip on errors (timeout, network, etc.)
+        // Silent skip on errors
         continue;
       }
     }
