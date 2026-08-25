@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium-min';
 
 export async function POST(request) {
+  let browser = null;
+
   try {
     const { username, password } = await request.json();
 
@@ -14,55 +17,96 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    const response = await axios.post(
-      `https://chrome.browserless.io/function?apiKey=${process.env.BROWSERLESS_API_KEY}`,
-      {
-        code: `
-          (async () => {
-            const browser = await puppeteer.launch({
-              headless: true,
-              args: ['--no-sandbox', '--disable-setuid-sandbox']
-            });
-            const page = await browser.newPage();
-            
-            await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
-            await page.type('#user', '${username}');
-            await page.type('#pass', '${password}');
-            await page.click('#btn-login');
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-            
-            const currentUrl = page.url();
-            const success = !currentUrl.includes('login');
-            
-            await browser.close();
-            
-            return { success };
-          })()
-        `
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000,
-      }
-    );
+    let executablePath;
 
-    const result = response.data;
-
-    if (result.success) {
-      console.log('✅ Login successful for:', username);
-      return NextResponse.json({
-        success: true,
-        message: 'Login successful',
-        user: username,
-      });
+    if (process.env.VERCEL) {
+      executablePath = await chromium.executablePath();
+      console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
     } else {
+      const fs = await import('fs');
+      const localPaths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+      ];
+      
+      for (const path of localPaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path;
+          break;
+        }
+      }
+      
+      executablePath = executablePath || '/usr/bin/chromium-browser';
+      console.log(`🔍 Running locally, using: ${executablePath}`);
+    }
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+      executablePath: executablePath,
+    });
+
+    const page = await browser.newPage();
+
+    await page.goto('https://jnanasudha.com/quiz/login', {
+      waitUntil: 'networkidle2',
+      timeout: 30000,
+    });
+
+    console.log('📄 Login page loaded');
+
+    await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
+    console.log('✅ Form found!');
+
+    await page.type('#user', username);
+    console.log('📝 Username typed');
+
+    await page.type('#pass', password);
+    console.log('📝 Password typed');
+
+    await page.click('#btn-login');
+    console.log('🖱️ Login button clicked');
+
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+    console.log('📱 Navigation complete');
+
+    const currentUrl = page.url();
+    console.log('📍 Current URL:', currentUrl);
+
+    if (currentUrl.includes('login')) {
+      const errorText = await page.evaluate(() => {
+        const el = document.querySelector('.error, .alert, .message');
+        return el ? el.innerText : 'Unknown error';
+      });
+      
+      await browser.close();
       return NextResponse.json(
-        { success: false, message: 'Invalid credentials' },
+        { success: false, message: `Login failed: ${errorText}` },
         { status: 401 }
       );
     }
+
+    console.log('✅ Login successful for:', username);
+    await browser.close();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Login successful',
+      user: username,
+    });
   } catch (error) {
     console.error('❌ Login error:', error);
+
+    if (browser) {
+      await browser.close();
+    }
+
     return NextResponse.json(
       { success: false, message: error.message || 'Login failed' },
       { status: 500 }

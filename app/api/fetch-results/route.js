@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium-min';
 
 export async function GET(request) {
   try {
@@ -13,87 +14,178 @@ export async function GET(request) {
       );
     }
 
-    // --- USE BROWSERLESS TOKEN MODE ---
-    const response = await axios.post(
-      `https://chrome.browserless.io/function?apiKey=${process.env.BROWSERLESS_API_KEY}`,
-      {
-        code: `
-          (async () => {
-            const browser = await puppeteer.launch({ 
-              headless: true,
-              args: ['--no-sandbox']
-            });
-            const page = await browser.newPage();
-            
-            console.log('📱 Logging in...');
-            
-            await page.goto('https://jnanasudha.com/quiz/login', {
-              waitUntil: 'networkidle2',
-              timeout: 15000
-            });
-            
-            await page.type('#user', '${username}');
-            await page.type('#pass', '${password}');
-            await page.click('#btn-login');
-            
-            await page.waitForNavigation({ 
-              waitUntil: 'networkidle2', 
-              timeout: 15000 
-            });
-            
-            if (page.url().includes('login')) {
-              throw new Error('Login failed');
-            }
-            
-            console.log('✅ Login successful!');
-            await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357');
-            
-            // ONLY GET THE FIRST 10 JUT IDs
-            const jutIds = await page.evaluate(() => {
-              const links = document.querySelectorAll('a[href*="view_result?id="]');
-              const ids = [];
-              links.forEach(link => {
-                const href = link.getAttribute('href');
-                const match = href.match(/id=(\\d+)/);
-                if (match) ids.push(parseInt(match[1]));
-              });
-              return ids.slice(0, 10); // ONLY FIRST 10
-            });
-            
-            const results = [];
-            for (const id of jutIds) {
-              console.log('📊 Fetching JUT ' + id);
-              await page.goto('https://jnanasudha.com/quiz/view_result?id=' + id);
-              
-              const data = await page.evaluate(() => {
-                const text = document.body.innerText;
-                const scoreMatch = text.match(/Total Score:\\s*(\\d+)/i);
-                const rankMatch = text.match(/RANK:\\s*(\\d+)/i);
-                return {
-                  score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-                  rank: rankMatch ? parseInt(rankMatch[1]) : 0
-                };
-              });
-              results.push({ id, ...data });
-            }
-            
-            await browser.close();
-            return results;
-          })()
-        `
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000, // 30 seconds
-      }
-    );
-
-    return NextResponse.json(response.data);
+    const results = await fetchJutResults(username, password);
+    return NextResponse.json(results);
   } catch (error) {
     console.error('Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to fetch results' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+async function fetchJutResults(username, password) {
+  console.log('🚀 Launching browser for:', username);
+
+  // --- @sparticuz/chromium-min ---
+  let executablePath;
+
+  if (process.env.VERCEL) {
+    // On Vercel, extract Chromium from the min package
+    executablePath = await chromium.executablePath();
+    console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
+  } else {
+    // Local development
+    const fs = await import('fs');
+    const localPaths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+    ];
+    
+    for (const path of localPaths) {
+      if (fs.existsSync(path)) {
+        executablePath = path;
+        break;
+      }
+    }
+    
+    executablePath = executablePath || '/usr/bin/chromium-browser';
+    console.log(`🔍 Running locally, using: ${executablePath}`);
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
+    executablePath: executablePath,
+  });
+
+  const page = await browser.newPage();
+
+  try {
+    // 1. LOGIN
+    console.log('📱 Logging in as:', username);
+    await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
+    await page.type('#user', username);
+    await page.type('#pass', password);
+    await page.click('#btn-login');
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+
+    if (page.url().includes('login')) {
+      throw new Error('Login failed - incorrect credentials');
+    }
+    console.log('✅ Login successful!');
+
+    // 2. GET JUT LIST
+    await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
+      waitUntil: 'networkidle2',
+    });
+    console.log('📄 JUT list page loaded');
+
+    const jutIds = await page.evaluate(() => {
+      const ids = [];
+      const links = document.querySelectorAll('a[href*="view_result?id="]');
+      links.forEach((link) => {
+        const href = link.getAttribute('href');
+        const match = href.match(/id=(\d+)/);
+        if (match) {
+          ids.push(parseInt(match[1]));
+        }
+      });
+      return ids;
+    });
+
+    console.log(`📊 Found ${jutIds.length} JUTs on the list page`);
+
+    // Limit to 15 JUTs to avoid timeout
+    const idsToFetch = jutIds.slice(0, 15);
+    console.log(`📊 Fetching ${idsToFetch.length} most recent JUTs`);
+
+    const results = [];
+    for (const id of idsToFetch) {
+      try {
+        console.log(`📊 Fetching JUT ${id}...`);
+
+        await page.goto(`https://jnanasudha.com/quiz/view_result?id=${id}`, {
+          waitUntil: 'networkidle2',
+          timeout: 10000,
+        });
+
+        const isValid = await page.evaluate(() => {
+          const text = document.body.innerText;
+          return text.includes('Total Score') || text.includes('RANK');
+        });
+
+        if (!isValid) {
+          console.log(`⏭️ JUT ${id}: No data found, skipping`);
+          continue;
+        }
+
+        const data = await page.evaluate(() => {
+          const text = document.body.innerText;
+
+          const scoreMatch = text.match(/Total Score:\s*(\d+)/i);
+          const rankMatch = text.match(/RANK:\s*(\d+)/i);
+
+          const rows = document.querySelectorAll('table tr');
+          let physics = 0,
+            chemistry = 0,
+            biology = 0;
+
+          rows.forEach((row) => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 5) {
+              const subject = cells[0].innerText.trim().toUpperCase();
+              if (subject.includes('PHYSICS')) {
+                physics = parseFloat(cells[4]?.innerText) || 0;
+              } else if (subject.includes('CHEMISTRY')) {
+                chemistry = parseFloat(cells[4]?.innerText) || 0;
+              } else if (subject.includes('BIOLOGY')) {
+                biology = parseFloat(cells[4]?.innerText) || 0;
+              }
+            }
+          });
+
+          if (physics === 0 && chemistry === 0 && biology === 0) {
+            const marksMatch = text.match(/Marks\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/);
+            if (marksMatch) {
+              physics = parseFloat(marksMatch[1]) || 0;
+              chemistry = parseFloat(marksMatch[2]) || 0;
+              biology = parseFloat(marksMatch[3]) || 0;
+            }
+          }
+
+          return {
+            score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
+            rank: rankMatch ? parseInt(rankMatch[1]) : 0,
+            physics,
+            chemistry,
+            biology,
+          };
+        });
+
+        if (data.score > 0 || data.physics > 0 || data.chemistry > 0 || data.biology > 0) {
+          results.push({ id, ...data });
+          console.log(`✅ JUT ${id}: Score ${data.score}, Rank ${data.rank}`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      } catch (error) {
+        console.log(`❌ JUT ${id}: Error - ${error.message}`);
+      }
+    }
+
+    console.log(`✅ Scan complete! Found ${results.length} JUTs.`);
+    await browser.close();
+
+    results.sort((a, b) => b.id - a.id);
+    return results;
+  } catch (error) {
+    console.error('Error:', error);
+    await browser.close();
+    throw error;
   }
 }
