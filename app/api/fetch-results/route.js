@@ -1,54 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
-import fs from 'fs';
-import path from 'path';
-
-// --- HELPER: Find Chromium executable ---
-async function findChromium() {
-  console.log('🔍 Searching for Chromium...');
-
-  try {
-    const execPath = await chromium.executablePath();
-    if (fs.existsSync(execPath)) {
-      console.log('✅ Found Chromium via @sparticuz/chromium-min at:', execPath);
-      return execPath;
-    }
-  } catch (e) {
-    console.log('⚠️ chromium.executablePath() failed:', e.message);
-  }
-
-  const possiblePaths = [
-    '/var/task/.next/server/bin/chromium',
-    '/var/task/bin/chromium',
-    '/tmp/bin/chromium',
-    path.join(process.cwd(), '.next/server/bin/chromium'),
-    path.join(process.cwd(), 'bin/chromium'),
-    path.join(process.cwd(), 'node_modules/@sparticuz/chromium-min/bin/chromium'),
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Found Chromium at:', p);
-      return p;
-    }
-  }
-
-  const fallbackPaths = [
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ];
-
-  for (const p of fallbackPaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Using fallback Chromium at:', p);
-      return p;
-    }
-  }
-
-  throw new Error('❌ Could not find Chromium executable anywhere');
-}
 
 export async function GET(request) {
   try {
@@ -73,9 +25,32 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- FIND CHROMIUM ---
-  const executablePath = await findChromium();
-  console.log('🔍 Using Chromium at:', executablePath);
+  // --- @sparticuz/chromium-min ---
+  let executablePath;
+
+  if (process.env.VERCEL) {
+    // On Vercel, extract Chromium from the min package
+    executablePath = await chromium.executablePath();
+    console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
+  } else {
+    // Local development
+    const fs = await import('fs');
+    const localPaths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+    ];
+    
+    for (const path of localPaths) {
+      if (fs.existsSync(path)) {
+        executablePath = path;
+        break;
+      }
+    }
+    
+    executablePath = executablePath || '/usr/bin/chromium-browser';
+    console.log(`🔍 Running locally, using: ${executablePath}`);
+  }
 
   const browser = await puppeteer.launch({
     headless: true,

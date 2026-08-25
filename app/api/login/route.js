@@ -1,57 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
-import fs from 'fs';
-import path from 'path';
-
-// --- HELPER: Find Chromium executable ---
-async function findChromium() {
-  console.log('🔍 Searching for Chromium...');
-
-  // 1. Check if @sparticuz/chromium-min can find it
-  try {
-    const execPath = await chromium.executablePath();
-    if (fs.existsSync(execPath)) {
-      console.log('✅ Found Chromium via @sparticuz/chromium-min at:', execPath);
-      return execPath;
-    }
-  } catch (e) {
-    console.log('⚠️ chromium.executablePath() failed:', e.message);
-  }
-
-  // 2. Check common Vercel paths
-  const possiblePaths = [
-    '/var/task/.next/server/bin/chromium',
-    '/var/task/bin/chromium',
-    '/tmp/bin/chromium',
-    path.join(process.cwd(), '.next/server/bin/chromium'),
-    path.join(process.cwd(), 'bin/chromium'),
-    path.join(process.cwd(), 'node_modules/@sparticuz/chromium-min/bin/chromium'),
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Found Chromium at:', p);
-      return p;
-    }
-  }
-
-  // 3. Fallback to system Chrome
-  const fallbackPaths = [
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ];
-
-  for (const p of fallbackPaths) {
-    if (fs.existsSync(p)) {
-      console.log('✅ Using fallback Chromium at:', p);
-      return p;
-    }
-  }
-
-  throw new Error('❌ Could not find Chromium executable anywhere');
-}
 
 export async function POST(request) {
   let browser = null;
@@ -68,11 +17,30 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    // --- FIND CHROMIUM ---
-    const executablePath = await findChromium();
-    console.log('🔍 Using Chromium at:', executablePath);
+    let executablePath;
 
-    // --- LAUNCH PUPPETEER ---
+    if (process.env.VERCEL) {
+      executablePath = await chromium.executablePath();
+      console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
+    } else {
+      const fs = await import('fs');
+      const localPaths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+      ];
+      
+      for (const path of localPaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path;
+          break;
+        }
+      }
+      
+      executablePath = executablePath || '/usr/bin/chromium-browser';
+      console.log(`🔍 Running locally, using: ${executablePath}`);
+    }
+
     browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -86,7 +54,6 @@ export async function POST(request) {
 
     const page = await browser.newPage();
 
-    // --- GO TO LOGIN PAGE ---
     await page.goto('https://jnanasudha.com/quiz/login', {
       waitUntil: 'networkidle2',
       timeout: 30000,
@@ -94,26 +61,21 @@ export async function POST(request) {
 
     console.log('📄 Login page loaded');
 
-    // --- WAIT FOR FORM ---
     await page.waitForSelector('#user, #pass, #btn-login', { timeout: 15000 });
     console.log('✅ Form found!');
 
-    // --- FILL CREDENTIALS ---
     await page.type('#user', username);
     console.log('📝 Username typed');
 
     await page.type('#pass', password);
     console.log('📝 Password typed');
 
-    // --- CLICK LOGIN ---
     await page.click('#btn-login');
     console.log('🖱️ Login button clicked');
 
-    // --- WAIT FOR NAVIGATION ---
     await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
     console.log('📱 Navigation complete');
 
-    // --- CHECK IF LOGIN SUCCEEDED ---
     const currentUrl = page.url();
     console.log('📍 Current URL:', currentUrl);
 
@@ -138,7 +100,6 @@ export async function POST(request) {
       message: 'Login successful',
       user: username,
     });
-
   } catch (error) {
     console.error('❌ Login error:', error);
 

@@ -4,7 +4,6 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/**/*': [
       'node_modules/@sparticuz/chromium-min/bin/**/*',
-      'node_modules/@sparticuz/chromium-min/bin',
       'node_modules/puppeteer-core/**/*',
     ],
   },
