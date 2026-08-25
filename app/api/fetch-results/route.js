@@ -1,6 +1,36 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
+import fs from 'fs';
+import path from 'path';
+
+const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar';
+
+async function getChromiumPath() {
+  try {
+    const execPath = await chromium.executablePath(CHROMIUM_URL);
+    if (fs.existsSync(execPath)) {
+      return execPath;
+    }
+  } catch (e) {
+    console.log('⚠️ Download failed, checking cache...');
+  }
+
+  const cachedPaths = [
+    '/tmp/chromium',
+    '/tmp/chromium-pack/chromium',
+    path.join(process.cwd(), '.cache/chromium'),
+  ];
+
+  for (const p of cachedPaths) {
+    if (fs.existsSync(p)) {
+      console.log('✅ Using cached Chromium at:', p);
+      return p;
+    }
+  }
+
+  throw new Error('❌ Could not find or download Chromium');
+}
 
 export async function GET(request) {
   try {
@@ -25,48 +55,18 @@ export async function GET(request) {
 async function fetchJutResults(username, password) {
   console.log('🚀 Launching browser for:', username);
 
-  // --- @sparticuz/chromium-min ---
-  let executablePath;
-
-  if (process.env.VERCEL) {
-    // On Vercel, extract Chromium from the min package
-    executablePath = await chromium.executablePath();
-    console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
-  } else {
-    // Local development
-    const fs = await import('fs');
-    const localPaths = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-    ];
-    
-    for (const path of localPaths) {
-      if (fs.existsSync(path)) {
-        executablePath = path;
-        break;
-      }
-    }
-    
-    executablePath = executablePath || '/usr/bin/chromium-browser';
-    console.log(`🔍 Running locally, using: ${executablePath}`);
-  }
+  const executablePath = await getChromiumPath();
+  console.log('🔍 Using Chromium at:', executablePath);
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-    ],
+    args: chromium.args,
     executablePath: executablePath,
   });
 
   const page = await browser.newPage();
 
   try {
-    // 1. LOGIN
     console.log('📱 Logging in as:', username);
     await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
     await page.type('#user', username);
@@ -79,7 +79,6 @@ async function fetchJutResults(username, password) {
     }
     console.log('✅ Login successful!');
 
-    // 2. GET JUT LIST
     await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
       waitUntil: 'networkidle2',
     });
@@ -98,11 +97,10 @@ async function fetchJutResults(username, password) {
       return ids;
     });
 
-    console.log(`📊 Found ${jutIds.length} JUTs on the list page`);
+    console.log(`📊 Found ${jutIds.length} JUTs`);
 
-    // Limit to 15 JUTs to avoid timeout
-    const idsToFetch = jutIds.slice(0, 15);
-    console.log(`📊 Fetching ${idsToFetch.length} most recent JUTs`);
+    const idsToFetch = jutIds.slice(0, 10);
+    console.log(`📊 Fetching ${idsToFetch.length} most recent`);
 
     const results = [];
     for (const id of idsToFetch) {

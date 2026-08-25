@@ -1,6 +1,39 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium-min';
+import fs from 'fs';
+import path from 'path';
+
+// --- CHROMIUM DOWNLOAD URL ---
+const CHROMIUM_URL = 'https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar';
+
+async function getChromiumPath() {
+  try {
+    // Let chromium-min handle the download
+    const execPath = await chromium.executablePath(CHROMIUM_URL);
+    if (fs.existsSync(execPath)) {
+      return execPath;
+    }
+  } catch (e) {
+    console.log('⚠️ Download failed, checking cache...');
+  }
+
+  // Check if already downloaded
+  const cachedPaths = [
+    '/tmp/chromium',
+    '/tmp/chromium-pack/chromium',
+    path.join(process.cwd(), '.cache/chromium'),
+  ];
+
+  for (const p of cachedPaths) {
+    if (fs.existsSync(p)) {
+      console.log('✅ Using cached Chromium at:', p);
+      return p;
+    }
+  }
+
+  throw new Error('❌ Could not find or download Chromium');
+}
 
 export async function POST(request) {
   let browser = null;
@@ -17,38 +50,14 @@ export async function POST(request) {
 
     console.log('🔐 Attempting login for:', username);
 
-    let executablePath;
+    // --- GET CHROMIUM ---
+    const executablePath = await getChromiumPath();
+    console.log('🔍 Using Chromium at:', executablePath);
 
-    if (process.env.VERCEL) {
-      executablePath = await chromium.executablePath();
-      console.log('🔍 Using @sparticuz/chromium-min at:', executablePath);
-    } else {
-      const fs = await import('fs');
-      const localPaths = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium-browser',
-      ];
-      
-      for (const path of localPaths) {
-        if (fs.existsSync(path)) {
-          executablePath = path;
-          break;
-        }
-      }
-      
-      executablePath = executablePath || '/usr/bin/chromium-browser';
-      console.log(`🔍 Running locally, using: ${executablePath}`);
-    }
-
+    // --- LAUNCH PUPPETEER ---
     browser = await puppeteer.launch({
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      args: chromium.args, // Use chromium-min's default args
       executablePath: executablePath,
     });
 
@@ -100,6 +109,7 @@ export async function POST(request) {
       message: 'Login successful',
       user: username,
     });
+
   } catch (error) {
     console.error('❌ Login error:', error);
 
