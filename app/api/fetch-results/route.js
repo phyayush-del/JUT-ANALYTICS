@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 
 export async function GET(request) {
   try {
@@ -29,9 +29,11 @@ async function fetchJutResults(username, password) {
   let executablePath;
 
   if (process.env.VERCEL) {
-    // Running on Vercel - use serverless Chromium
-    executablePath = await chromium.executablePath();
-    console.log('🔍 Running on Vercel, using serverless Chromium');
+    // Running on Vercel - use serverless Chromium-min
+    executablePath = await chromium.executablePath(
+      'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar'
+    );
+    console.log('🔍 Running on Vercel, using serverless Chromium-min');
   } else {
     // Local development - check common paths
     const fs = await import('fs');
