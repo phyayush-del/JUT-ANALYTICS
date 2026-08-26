@@ -2,20 +2,15 @@
   "name": "jut-analytics",
   "version": "1.0.0",
   "private": true,
-  "engines": {
-    "node": "24.x"
-  },
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
+  "engines": { "node": "24.x" },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
   "dependencies": {
     "next": "14.0.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "recharts": "2.8.0",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "@browserbasehq/sdk": "^1.0.0"
   },
   "devDependencies": {
     "autoprefixer": "10.4.16",

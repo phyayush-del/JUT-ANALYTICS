@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { wrapper } from 'axios-cookiejar-support';
+import { CookieJar } from 'tough-cookie';
+
 export async function POST(request) {
   try {
     const { username, password } = await request.json();
@@ -7,31 +10,15 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'Username and password are required' }, { status: 400 });
     }
     console.log('🔐 Attempting login for:', username);
-    const response = await axios.post(
-      `https://chrome.browserless.io/function?apiKey=${process.env.BROWSERLESS_API_KEY}`,
-      {
-        code: `
-          (async () => {
-            const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-            const page = await browser.newPage();
-            await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
-            await page.type('#user', '${username}');
-            await page.type('#pass', '${password}');
-            await page.click('#btn-login');
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-            const currentUrl = page.url();
-            const success = !currentUrl.includes('login');
-            await browser.close();
-            return { success };
-          })()
-        `
-      },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
-    );
-    const result = response.data;
-    if (result.success) {
+    const jar = new CookieJar();
+    const client = wrapper(axios.create({ jar, withCredentials: true, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.5', 'Accept-Encoding': 'gzip, deflate, br', 'Connection': 'keep-alive', 'Upgrade-Insecure-Requests': '1' } }));
+    await client.get('https://jnanasudha.com/quiz/login');
+    const loginRes = await client.post('https://jnanasudha.com/quiz/login', new URLSearchParams({ user: username, pass: password }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, maxRedirects: 5, validateStatus: (status) => status < 500 });
+    const isLoggedIn = loginRes.status === 302 || loginRes.data.includes('dashboard') || loginRes.data.includes('quiz_inform');
+    if (isLoggedIn) {
+      const cookies = await jar.getCookieString('https://jnanasudha.com');
       console.log('✅ Login successful for:', username);
-      return NextResponse.json({ success: true, message: 'Login successful', user: username });
+      return NextResponse.json({ success: true, message: 'Login successful', user: username, cookies });
     } else {
       return NextResponse.json({ success: false, message: 'Invalid credentials' }, { status: 401 });
     }
