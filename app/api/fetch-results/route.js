@@ -26,18 +26,15 @@ async function fetchJutResults(username, password) {
     apiKey: process.env.BROWSERBASE_API_KEY,
   });
 
-  // Create a new session
   const session = await bb.sessions.create({
     projectId: process.env.BROWSERBASE_PROJECT_ID,
   });
 
   console.log(`✅ Session created: ${session.id}`);
 
-  // Connect to the session and run Puppeteer code
   const result = await bb.sessions.connect(session.id, async (page) => {
     console.log('📱 Logging in as:', username);
 
-    // 1. LOGIN
     await page.goto('https://jnanasudha.com/quiz/login', { waitUntil: 'networkidle2' });
     await page.type('#user', username);
     await page.type('#pass', password);
@@ -49,7 +46,6 @@ async function fetchJutResults(username, password) {
     }
     console.log('✅ Login successful!');
 
-    // 2. GET JUT LIST
     console.log('📄 Fetching JUT list...');
     await page.goto('https://jnanasudha.com/quiz/quiz_inform?package=357', {
       waitUntil: 'networkidle2'
@@ -68,7 +64,6 @@ async function fetchJutResults(username, password) {
 
     console.log('📊 Found ' + jutIds.length + ' JUTs');
 
-    // 3. FETCH EACH JUT
     const results = [];
     for (const id of jutIds) {
       console.log('📊 Fetching JUT ' + id + '...');

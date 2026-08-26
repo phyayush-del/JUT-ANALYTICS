@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_IfSvjBDJevN07hluMF5qYCDK7SuP",
+      "name": "jut-analytics",
+      "directory": ".",
+      "orgId": "team_6bJgvRolbot42axpYVG0JCUZ"
+    }
+  ]
+}
